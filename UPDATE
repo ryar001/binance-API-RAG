@@ -1,0 +1,5 @@
+110724
+    - refine the LLM rag model, workable in current stage
+    TODO:
+        - test the various text splitter accuracy
+        - check the cost
