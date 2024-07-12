@@ -1,4 +1,5 @@
-from langchain_community.document_loaders import PyPDFLoader,BrowserbaseLoader,BSHTMLLoader,SeleniumURLLoader
+breakpoint()
+import utils
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain_experimental.text_splitter import SemanticChunker
 from langchain import text_splitter
@@ -12,12 +13,12 @@ from langchain_core.runnables import RunnablePassthrough
 from langchain import hub
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.documents import Document
-
-
+import components.utils.const as const
 import os
 import dotenv
 from pathlib import Path
 from typing import List, Dict
+from components.utils.vectorstore_utils import VectorStoreUtils
 
 BASE_PATH = Path(__file__).parent.parent
 
@@ -28,15 +29,11 @@ dotenv.load_dotenv(dotenv_path=Path(BASE_PATH,".env")  ) # Specify the path to y
 
 class RAGModel:
     RAG_PROMPT = ChatPromptTemplate.from_template("You are an assistant for question-answering tasks. Use the following pieces of retrieved context to answer the question. If you don't know the answer, just say that you don't know. Use three sentences maximum and keep the answer concise. Include the sources used and its page number\nQuestion: {question} \nContext: {context} \nAnswer:")
-    DOC_LOADERS = {
-        "PyPDFLoader": PyPDFLoader,
-        "BrowserbaseLoader": BrowserbaseLoader,
-        "BSHTMLLoader": BSHTMLLoader,
-        "SeleniumURLLoader": SeleniumURLLoader
-    }
+
     def __init__(
         self, doc_path="", embedding_model="text-embedding-3-large", llm_model="gpt-4o",
         loader_name="PyPDFLoader",**kwargs):
+
         self.loader_name = loader_name
         self.doc_path = doc_path
         self.embedding_model = embedding_model
@@ -50,12 +47,15 @@ class RAGModel:
         self.debug:bool = kwargs.get("debug", False)
         self.temperature:float = kwargs.get("temperature", 0)
         self.splitter = kwargs.get("splitter", RecursiveCharacterTextSplitter)
+        self.documents_loader: const.DocumentLoaders = const.DocumentLoaders
+        self.vector_store = VectorStoreUtils
+        # self.retriever = con
 
     def load_documents(self,urls:List[str]=[""], loader_name:str="",**kwargs):
         '''load documents from the specified loader'''
         if not loader_name:
             loader_name = self.loader_name
-        loader = self.DOC_LOADERS.get(loader_name, PyPDFLoader)
+        loader = self.documents_loader.__dict__.get(loader_name, PyPDFLoader)
         breakpoint()
         loader = loader(self.doc_path, **kwargs)
         self.documents = loader.load_and_split()
@@ -147,7 +147,7 @@ class RAGModel:
         self.create_rag_chain()
         return self.rag_chain
     
-    def add_to
+    # def add_to
     
 
 if __name__ == "__main__":

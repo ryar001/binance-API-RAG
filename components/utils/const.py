@@ -1,5 +1,8 @@
+from langchain_community import embeddings
+from langchain_community import vectorstores
+from langchain_community import document_loaders
+from langchain_community import retrievers
 from typing import Dict, Any, Tuple
-from abc import ABC, abstractmethod
 
 
 class MetaClass(type):
@@ -24,10 +27,30 @@ class MetaClass(type):
         for key,val in base_instance._module_lookup.items():
             setattr(new_class,val.split('.')[-1],getattr(base_instance,key)) 
         return new_class
-  
-    
-def Utils(metaclass=MetaClass):
-    '''Utils class'''
-    
-    # @staticmethod
-    # def get_attr
+
+
+class Embeddings(metaclass=MetaClass):
+    '''Embeddings class'''
+    BASE = embeddings 
+
+class VectorStores(metaclass=MetaClass):
+    '''VectorStores class'''
+    BASE = vectorstores
+
+class DocumentLoaders(metaclass=MetaClass):
+    '''DocumentLoaders class'''
+    BASE = document_loaders
+
+class Retriever(metaclass=MetaClass):
+    '''Retriever class'''
+    BASE = retrievers
+
+if __name__ == "__main__":
+    Embeddings
+    breakpoint()
+    print(Embeddings['open_ai_embeddings'])
+    print(Embeddings.hugging_face_embeddings)
+    print(Embeddings.__get_dict__())
+    breakpoint( )
+# Compare this snippet from components/chain.py:
+# Compare this snippet from components/const.p

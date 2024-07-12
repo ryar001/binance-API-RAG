@@ -1,4 +1,5 @@
 from pathlib import Path
+breakpoint()
 from typing import Dict
 from dotenv import load_dotenv
 from langchain_core.vectorstores import VectorStore as VectorStoreClass
@@ -7,7 +8,8 @@ from langchain_community.callbacks.manager import get_openai_callback
 from const import Embeddings, VectorStores
 load_dotenv(dotenv_path=Path(__file__).parent.parent / ".env" )
 
-class VectoreStore:
+class VectorStoreUtils:
+    breakpoint()
     """
     A class representing a vector store.
 
@@ -25,7 +27,7 @@ class VectoreStore:
         get_retriever: Retrieves a retriever object from the vector store.
     """
 
-    def __init__(self, vector_store_fp: str = "vectorstore.pkl", vectorstore: str = "faiss", embeddings: str = "openai"):
+    def __init__(self, vector_store_fp: str = "vectorstore.pkl", vectorstore: str = "faiss", embeddings: str = "openai",**kwargs):
         self.vector_store_fp = vector_store_fp
         self.embeddings: EmbeddingsClass = Embeddings[embeddings]
         self.vectorstore: VectorStoreClass = VectorStores[vectorstore]
@@ -146,7 +148,7 @@ class VectoreStore:
             return None
         return getattr(vector_store, method)(query)[:top_x]
 
-    def get_retriever(self, search_kwargs: Dict[str: str] = None, **kwargs):
+    def get_retriever(self, search_kwargs: Dict[str, str]=None, **kwargs):
         """
         Retrieves a retriever object from the vector store.
 
@@ -161,7 +163,7 @@ class VectoreStore:
         return vectorstore.as_retriever(search_kwargs=search_kwargs, **kwargs)
 
 if __name__ =="__main__":
-    vs = VectoreStore()
+    vs = VectorStoreUtils()
     vs.get_vectorstore(text_chunks=["hello world"],data_type="text")
     vs.search_docs(vs.vectorstore,"hello world")
     breakpoint()
