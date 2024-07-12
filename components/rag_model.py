@@ -11,6 +11,9 @@ from langchain_core.output_parsers import StrOutputParser
 from langchain_core.runnables import RunnablePassthrough
 from langchain import hub
 from langchain_core.prompts import ChatPromptTemplate
+from langchain_core.documents import Document
+
+
 import os
 import dotenv
 from pathlib import Path
@@ -143,6 +146,8 @@ class RAGModel:
         self.initialize_llm()
         self.create_rag_chain()
         return self.rag_chain
+    
+    def add_to
     
 
 if __name__ == "__main__":
