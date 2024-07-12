@@ -1,0 +1,1 @@
+May I know why origQty can't be lower than 1 in create order?,"symbol":"btc_usdt","orderSide":"BUY","orderType":"LIMIT","origQty":0.00001,"price":1,"reduceOnly":false,"positionSide":"LONG"}, failed with error: error: invalid_quantity | invalid_quantity

@@ -1,4 +1,4 @@
-from langchain_community.document_loaders import PyPDFLoader
+from langchain_community.document_loaders import PyPDFLoader,BrowserbaseLoader,BSHTMLLoader,SeleniumURLLoader
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain_experimental.text_splitter import SemanticChunker
 from langchain import text_splitter
@@ -14,6 +14,7 @@ from langchain_core.prompts import ChatPromptTemplate
 import os
 import dotenv
 from pathlib import Path
+from typing import List, Dict
 
 BASE_PATH = Path(__file__).parent.parent
 
@@ -24,10 +25,17 @@ dotenv.load_dotenv(dotenv_path=Path(BASE_PATH,".env")  ) # Specify the path to y
 
 class RAGModel:
     RAG_PROMPT = ChatPromptTemplate.from_template("You are an assistant for question-answering tasks. Use the following pieces of retrieved context to answer the question. If you don't know the answer, just say that you don't know. Use three sentences maximum and keep the answer concise. Include the sources used and its page number\nQuestion: {question} \nContext: {context} \nAnswer:")
-
+    DOC_LOADERS = {
+        "PyPDFLoader": PyPDFLoader,
+        "BrowserbaseLoader": BrowserbaseLoader,
+        "BSHTMLLoader": BSHTMLLoader,
+        "SeleniumURLLoader": SeleniumURLLoader
+    }
     def __init__(
-        self, pdf_path, embedding_model="text-embedding-3-large", llm_model="gpt-4o",**kwargs):
-        self.pdf_path = pdf_path
+        self, doc_path="", embedding_model="text-embedding-3-large", llm_model="gpt-4o",
+        loader_name="PyPDFLoader",**kwargs):
+        self.loader_name = loader_name
+        self.doc_path = doc_path
         self.embedding_model = embedding_model
         self.llm_model = llm_model
         self.documents = None
@@ -40,11 +48,38 @@ class RAGModel:
         self.temperature:float = kwargs.get("temperature", 0)
         self.splitter = kwargs.get("splitter", RecursiveCharacterTextSplitter)
 
-    def load_pdf(self):
-        loader = PyPDFLoader(self.pdf_path)
+    def load_documents(self,urls:List[str]=[""], loader_name:str="",**kwargs):
+        '''load documents from the specified loader'''
+        if not loader_name:
+            loader_name = self.loader_name
+        loader = self.DOC_LOADERS.get(loader_name, PyPDFLoader)
+        breakpoint()
+        loader = loader(self.doc_path, **kwargs)
+        self.documents = loader.load_and_split()
+        return self.documents
+
+    def pdf_loader(self,urls:List[str]=None,**kwargs):
+        '''PyPDFLoader is a loader that uses PyPDF2 to load PDF files. It is useful for extracting text from PDF files.'''
+        urls = urls if urls else self.doc_path
+        loader = PyPDFLoader(urls)
         self.documents = loader.load_and_split()
         if self.debug:
             self.documents = self.documents[:2]
+
+    def bshtml_loader(self,urls:List[str]=["https://binance-docs.github.io/apidocs/pm/en/#change-log"],**kwargs):
+        '''BSHTMLLoader is a loader that uses BeautifulSoup to parse the HTML content of a webpage. It is useful for extracting text from webpages that are not easily accessible via the browser.'''
+        loader = BSHTMLLoader(urls)
+        self.documents = loader.load_and_split()
+        return self.documents
+        breakpoint()
+        # print(docs[0].page_content[:61])
+    
+    def selenium_loader(self,urls:List[str]=["https://binance-docs.github.io/apidocs/pm/en/#change-log"],**kwargs):
+        '''SeleniumURLLoader is a loader that uses Selenium to load webpages. It is useful for extracting text from webpages that require JavaScript to render.'''
+        loader = SeleniumURLLoader(urls=urls)
+        breakpoint()
+        self.documents = loader.load_and_split()
+        return self.documents
 
     def split_text(self):
         text_splitter = self.splitter(
@@ -102,30 +137,34 @@ class RAGModel:
         
     def create_chain(self):
         '''run all the methods to create the RAG chain'''
-        self.load_pdf()
+        self.load_documents(self.loader_name)
         self.split_text()
         self.embed_text()
         self.initialize_llm()
         self.create_rag_chain()
         return self.rag_chain
+    
 
 if __name__ == "__main__":
+    sele_web_rag = RAGModel(debug=True,loader_name="SeleniumURLLoader" ,doc_path=["https://doc.xt.com/"])
+    sele_web_rag.create_chain()
     breakpoint()
-    base_path = Path(__file__).parent.parent
-    pdf_path = Path(base_path,"pdf_files/lamrim/lr-simplified-chinese02.pdf")
-    rag_recur = RAGModel(pdf_path,debug=True )
-    rag_seman = RAGModel(pdf_path,debug=True, splitter=SemanticChunker)
-    rag_spacy = RAGModel(pdf_path,debug=True, splitter=text_splitter.SpacyTextSplitter)
 
-    rc_recur = rag_recur.create_chain()
-    rc_seman = rag_seman.create_chain()
-    rc_spacy = rag_spacy.create_chain()
+    # base_path = Path(__file__).parent.parent
+    # pdf_path = Path(base_path,"pdf_files/lamrim/lr-simplified-chinese02.pdf")
+    # rag_recur = RAGModel(pdf_path,debug=True )
+    # rag_seman = RAGModel(pdf_path,debug=True, splitter=SemanticChunker)
+    # rag_spacy = RAGModel(pdf_path,debug=True, splitter=text_splitter.SpacyTextSplitter)
 
-    while 1:
-        question = input("Enter your question: ")
-        ans_recur = rc_recur.answer_question(question)
-        ans_semen = rc_seman.answer_question(question)
-        ans_spacy = rc_spacy.answer_question(question)
-        print(f"""Recursive: {ans_recur}\n
-              Semantic: {ans_semen}\n
-              Spacy: {ans_spacy}""")
+    # rc_recur = rag_recur.create_chain()
+    # rc_seman = rag_seman.create_chain()
+    # rc_spacy = rag_spacy.create_chain()
+
+    # while 1:
+    #     question = input("Enter your question: ")
+    #     ans_recur = rc_recur.answer_question(question)
+    #     ans_semen = rc_seman.answer_question(question)
+    #     ans_spacy = rc_spacy.answer_question(question)
+    #     print(f"""Recursive: {ans_recur}\n
+    #           Semantic: {ans_semen}\n
+    #           Spacy: {ans_spacy}""")
