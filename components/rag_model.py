@@ -1,4 +1,3 @@
-breakpoint()
 import utils
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain_experimental.text_splitter import SemanticChunker
@@ -13,12 +12,12 @@ from langchain_core.runnables import RunnablePassthrough
 from langchain import hub
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.documents import Document
-import components.utils.const as const
+import utils as const
 import os
 import dotenv
 from pathlib import Path
 from typing import List, Dict
-from components.utils.vectorstore_utils import VectorStoreUtils
+from vectorstore_utils import VectorStoreUtils
 
 BASE_PATH = Path(__file__).parent.parent
 
@@ -42,21 +41,21 @@ class RAGModel:
         self.docs = None
         self.faiss_index = None
         self.llm = None
+        self.vector_store = None
         self.rag_chain:RunnableSequence = None
         self.prompt:ChatPromptTemplate = kwargs.get("prompt", self.RAG_PROMPT ) if kwargs.get("prompt", self.RAG_PROMPT ) else hub.pull("rlm/rag-prompt")
         self.debug:bool = kwargs.get("debug", False)
         self.temperature:float = kwargs.get("temperature", 0)
         self.splitter = kwargs.get("splitter", RecursiveCharacterTextSplitter)
         self.documents_loader: const.DocumentLoaders = const.DocumentLoaders
-        self.vector_store = VectorStoreUtils
+        self.vector_store_utils = VectorStoreUtils(**kwargs)
         # self.retriever = con
 
     def load_documents(self,urls:List[str]=[""], loader_name:str="",**kwargs):
         '''load documents from the specified loader'''
         if not loader_name:
             loader_name = self.loader_name
-        loader = self.documents_loader.__dict__.get(loader_name, PyPDFLoader)
-        breakpoint()
+        loader = self.documents_loader.__dict__.get(loader_name)
         loader = loader(self.doc_path, **kwargs)
         self.documents = loader.load_and_split()
         return self.documents
@@ -74,13 +73,11 @@ class RAGModel:
         loader = BSHTMLLoader(urls)
         self.documents = loader.load_and_split()
         return self.documents
-        breakpoint()
         # print(docs[0].page_content[:61])
     
     def selenium_loader(self,urls:List[str]=["https://binance-docs.github.io/apidocs/pm/en/#change-log"],**kwargs):
         '''SeleniumURLLoader is a loader that uses Selenium to load webpages. It is useful for extracting text from webpages that require JavaScript to render.'''
         loader = SeleniumURLLoader(urls=urls)
-        breakpoint()
         self.documents = loader.load_and_split()
         return self.documents
 
@@ -137,12 +134,16 @@ class RAGModel:
             raise ValueError(
                 "RAG chain is not initialized. Call create_rag_chain() first."
             )
+    
+    def get_vectorstore(self,docs):
+        self.vector_store = self.vector_store_utils.get_vectorstore(data_type="documents",text_chunks=docs,mode="merge")
         
     def create_chain(self):
         '''run all the methods to create the RAG chain'''
         self.load_documents(self.loader_name)
         self.split_text()
         self.embed_text()
+        self.get_vectorstore(self.docs)
         self.initialize_llm()
         self.create_rag_chain()
         return self.rag_chain
@@ -151,9 +152,18 @@ class RAGModel:
     
 
 if __name__ == "__main__":
-    sele_web_rag = RAGModel(debug=True,loader_name="SeleniumURLLoader" ,doc_path=["https://doc.xt.com/"])
-    sele_web_rag.create_chain()
+    # sele_web_rag = RAGModel(debug=True,loader_name="SeleniumURLLoader" ,doc_path=["https://doc.xt.com/"])
+    sele_web_rag = RAGModel(debug=True,loader_name="url_selenium"
+                            ,doc_path=["https://doc.xt.com/#documentationrestApi"],
+                             vector_store_fp="/Users/jokerssd/Documents/RAG-freshstart/components/vectore_indexes/index.faiss",
+                             )
+    # sele_web_rag = RAGModel(debug=True,loader_name="url_selenium"
+    #                         ,doc_path=["https://www.binance.com/en/futures/trading-rules/perpetual/portfolio-margin/collateral-ratio"],
+    #                          vector_store_fp="/Users/jokerssd/Documents/RAG-freshstart/components/vectore_indexes/index.faiss")
+    
+    sele_web_rag_chain = sele_web_rag.create_chain()
     breakpoint()
+
 
     # base_path = Path(__file__).parent.parent
     # pdf_path = Path(base_path,"pdf_files/lamrim/lr-simplified-chinese02.pdf")
