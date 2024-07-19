@@ -1,4 +1,4 @@
-class BinanceApi:
+class BinanceApiDocs:
     class PortfolioMargin:
         class Trade:
             GENERAL_INFO = "https://developers.binance.com/docs/derivatives/portfolio-margin/general-info"

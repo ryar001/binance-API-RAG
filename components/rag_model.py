@@ -30,7 +30,7 @@ class RAGModel:
     RAG_PROMPT = ChatPromptTemplate.from_template("You are an assistant for question-answering tasks. Use the following pieces of retrieved context to answer the question. If you don't know the answer, just say that you don't know. Use three sentences maximum and keep the answer concise. Include the sources used and its page number\nQuestion: {question} \nContext: {context} \nAnswer:")
 
     def __init__(
-        self, doc_path="", embedding_model="text-embedding-3-large", llm_model="gpt-4o",
+        self, doc_path="", embedding_model="text-embedding-3-large", llm_model="gpt-4o-mini-2024-07-18",
         loader_name="PyPDFLoader",**kwargs):
 
         self.loader_name = loader_name
@@ -162,7 +162,10 @@ if __name__ == "__main__":
     #                          vector_store_fp="/Users/jokerssd/Documents/RAG-freshstart/components/vectore_indexes/index.faiss")
     
     sele_web_rag_chain = sele_web_rag.create_chain()
-    breakpoint()
+    while 1:
+        question = input("Enter your query: ")
+        ans = sele_web_rag_chain.answer_question(question)
+        print(ans)    
 
 
     # base_path = Path(__file__).parent.parent
