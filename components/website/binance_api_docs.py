@@ -1,8 +1,20 @@
 class BinanceApiDocs:
+    @classmethod
+    def get_all_endpoints(cls):
+        def recursive_attributes(subclass):
+            attrs = {}
+            for name, obj in subclass.__dict__.items():
+                if name in ["get_all_endpoints"]:
+                    continue
+                if not name.startswith('__') and not callable(obj):
+                    attrs[name] = obj
+                elif isinstance(obj, type):  # Check if the object is a class
+                    attrs[name] = recursive_attributes(obj)
+            return attrs
+        
+        return recursive_attributes(cls)
     class PortfolioMargin:
         class Trade:
-            GENERAL_INFO = "https://developers.binance.com/docs/derivatives/portfolio-margin/general-info"
-            COMMON_DEFINITIONS = "https://developers.binance.com/docs/derivatives/portfolio-margin/common-definitions"
             NEW_UM_ORDER = "https://developers.binance.com/docs/derivatives/portfolio-margin/trade/New-UM-Order"
             NEW_UM_CONDITIONAL_ORDER = "https://developers.binance.com/docs/derivatives/portfolio-margin/trade/New-UM-Conditional-Order"
             NEW_CM_ORDER = "https://developers.binance.com/docs/derivatives/portfolio-margin/trade/New-CM-Order"
@@ -78,6 +90,12 @@ class BinanceApiDocs:
             GET_CM_INCOME_HISTORY = "https://developers.binance.com/docs/derivatives/portfolio-margin/account/Get-CM-Income-History"
             GET_UM_ACCOUNT_DETAIL = "https://developers.binance.com/docs/derivatives/portfolio-margin/account/Get-UM-Account-Detail"
             GET_CM_ACCOUNT_DETAIL = "https://developers.binance.com/docs/derivatives/portfolio-margin/account/Get-CM-Account-Detail"
+
+        class GeneralInfo:
+            GENERAL_INFO = "https://developers.binance.com/docs/derivatives/portfolio-margin/general-info"
+
+        class CommonDefinition:
+            COMMON_DEFINITION = "https://developers.binance.com/docs/derivatives/portfolio-margin/common-definition"
 
         class ErrorCode:
             ERROR_CODE = "https://developers.binance.com/docs/derivatives/portfolio-margin/error-code"

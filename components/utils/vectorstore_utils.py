@@ -1,10 +1,10 @@
 from pathlib import Path
-from typing import Dict,Any
+from typing import Dict,Any,List
 from dotenv import load_dotenv
 from langchain_core.vectorstores import VectorStore as VectorStoreClass
 from langchain_core.embeddings import Embeddings as EmbeddingsClass
 from langchain_community.callbacks.manager import get_openai_callback
-from const import Embeddings, VectorStores
+from const import Embeddings, VectorStores, DocumentLoaders
 load_dotenv(dotenv_path=Path(__file__).parent.parent / ".env" )
 
 class VectorStoreUtils:
@@ -31,6 +31,21 @@ class VectorStoreUtils:
         self.embeddings_app: EmbeddingsClass = Embeddings[embeddings](**self.embeddings_kwargs)
         self.vectorstore_app: VectorStoreClass = VectorStores[vectorstore]
         self.vectorstore = None
+        self.loader_name = kwargs.get("loader_name", "PyPDFLoader")
+        self.documents_loader: DocumentLoaders = DocumentLoaders
+
+    def load_documents(self,doc_path:List[str]=[""], loader_name:str="",**kwargs):
+        '''load documents from the specified loader'''
+        just_load = kwargs.get("just_load", False)
+        if not loader_name:
+            loader_name = self.loader_name
+        loader = self.documents_loader.__dict__.get(loader_name)
+        loader = loader(doc_path)
+        if just_load:
+            documents = loader.load()
+            return documents
+        documents = loader.load_and_split()
+        return documents
 
     def create_vectorstore(self, text_chunks: list, data_type: str = "text", **kwargs):
         """
@@ -48,11 +63,9 @@ class VectorStoreUtils:
         tmp_vectorstore = None
         with get_openai_callback() as cb:
             if data_type == "text":
-                breakpoint()
                 tmp_vectorstore = self.vectorstore_app.from_texts(
                     text_chunks, embedding=embeddings)
             if data_type == "documents":
-                breakpoint()
                 tmp_vectorstore = self.vectorstore_app.from_documents(
                     text_chunks, self.embeddings_app
                 )
@@ -72,14 +85,28 @@ class VectorStoreUtils:
         Returns:
             vectorstore: The loaded vector store.
         """
-
-        if not Path(self.vector_store_fp).exists():
+        if not Path(vs_path).exists():
+            print(f"vector store not found at {vs_path}")
             return None
-        
         try:
             return self.vectorstore_app.load_local(vs_path, embeddings=embeddings,**kwargs)
-        except RuntimeError:
+        except RuntimeError as err:
+            print(err)
             return None
+
+    def parse_vectorstore(self,curr_vectorstore, new_vectorstore,mode:str="merge", **_):
+        # merge Vector store
+        if curr_vectorstore and new_vectorstore and mode == "merge":
+            return self.merge_vectorstore(curr_vectorstore, new_vectorstore)
+        
+        if not curr_vectorstore and mode == "merge":
+            return new_vectorstore
+
+        # replace
+        if new_vectorstore and mode == "replace":
+            return new_vectorstore
+
+        return curr_vectorstore
 
     def get_vectorstore(self, data_type: str = "text", text_chunks: list = None, mode: str = "merge", **kwargs):
         """
@@ -96,27 +123,23 @@ class VectorStoreUtils:
         """
         embeddings = kwargs.get("embeddings", self.embeddings_app)
         vector_store_fp = kwargs.get("vector_store_fp", self.vector_store_fp)
-
         if Path(vector_store_fp).exists():
-            breakpoint()
             self.vectorstore = self.load_vectorstore(
-                vector_store_fp, embeddings=embeddings,allow_dangerous_deserialization=True)
+                vs_path=vector_store_fp, embeddings=embeddings,
+                allow_dangerous_deserialization=True)
             print("Loaded vectorstore")
 
         # check if additional text_chunks are provided
         # if not will return the existing vectorstore
         if not text_chunks:
             return self.vectorstore_app
-        breakpoint()
+
         # create vectorstore and print the cost
         tmp_vectorstore = self.create_vectorstore(
             text_chunks=text_chunks, data_type=data_type, embeddings=embeddings)
 
-        # merge Vector store
-        if self.vectorstore and tmp_vectorstore and mode == "merge":
-            self.merge_vectorstore(self.vectorstore, tmp_vectorstore)
-
-        self.vectorstore = self.vectorstore if self.vectorstore else tmp_vectorstore
+        # parse vectorstore, whether to merge or replace
+        self.vectorstore = self.parse_vectorstore(self.vectorstore, tmp_vectorstore, mode=mode)
 
         # save vectorstore to local
         self.vectorstore.save_local(vector_store_fp)
@@ -134,8 +157,18 @@ class VectorStoreUtils:
         Returns:
             vectorstore (VectorStoreClass): The merged vector store.
         """
-        vectorstore.merge_from(vectorstore2)
-        return vectorstore
+        if not vectorstore:
+            return vectorstore2
+        try:
+            vectorstore.merge_from(vectorstore2)
+            return vectorstore
+        except Exception as err:
+            print(err)
+            if vectorstore:
+                return vectorstore
+            if vectorstore2:
+                return vectorstore2
+            return None
 
     def search_docs(self, query: str, method: str = "similarity_search", top_x: int = 5, **kwargs):
         """

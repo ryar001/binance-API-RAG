@@ -53,10 +53,14 @@ class RAGModel:
 
     def load_documents(self,urls:List[str]=[""], loader_name:str="",**kwargs):
         '''load documents from the specified loader'''
+        just_load = kwargs.get("just_load", False)
         if not loader_name:
             loader_name = self.loader_name
         loader = self.documents_loader.__dict__.get(loader_name)
         loader = loader(self.doc_path, **kwargs)
+        if just_load:
+            self.documents = loader.load()
+            return self.documents
         self.documents = loader.load_and_split()
         return self.documents
 
@@ -152,15 +156,18 @@ class RAGModel:
     
 
 if __name__ == "__main__":
+    from website.binance_api_docs import BinanceApiDocs
+    breakpoint()
     # sele_web_rag = RAGModel(debug=True,loader_name="SeleniumURLLoader" ,doc_path=["https://doc.xt.com/"])
-    sele_web_rag = RAGModel(debug=True,loader_name="url_selenium"
-                            ,doc_path=["https://doc.xt.com/#documentationrestApi"],
-                             vector_store_fp="/Users/jokerssd/Documents/RAG-freshstart/components/vectore_indexes/index.faiss",
-                             )
+    sele_web_rag = RAGModel(debug=True,loader_name="url_selenium",
+                            doc_path=["https://doc.xt.com/#documentationrestApi"],
+                            vector_store_fp="/Users/jokerssd/Documents/RAG-freshstart/components/vectore_indexes/index.faiss",
+                            )
     # sele_web_rag = RAGModel(debug=True,loader_name="url_selenium"
     #                         ,doc_path=["https://www.binance.com/en/futures/trading-rules/perpetual/portfolio-margin/collateral-ratio"],
     #                          vector_store_fp="/Users/jokerssd/Documents/RAG-freshstart/components/vectore_indexes/index.faiss")
     
+
     sele_web_rag_chain = sele_web_rag.create_chain()
     while 1:
         question = input("Enter your query: ")
