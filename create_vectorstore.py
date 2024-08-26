@@ -138,14 +138,20 @@ class CreateVectorStore:
     def load_all_vectore_stores(self,fp_list:List[str],)->dict:
         '''load all vectorstores in fp_list'''
         for fp in fp_list:
-            self.vectorstore_dict[fp] = self.vector_store_utils.load_vectorstore(fp,allow_dangerous_deserialization=True)
+            res = self.vector_store_utils.load_vectorstore(fp,allow_dangerous_deserialization=True)
+            # res.similarity_search("hello")
+            if not res:
+                print(f"vector store not found at {fp}")
+            self.vectorstore_dict[fp] = res
         return self.vectorstore_dict
     
     def merge_all_vectore_stores(self,v_list:list):
         '''merge all the vectorstores in v_dict and return the merged vectorstore'''
-        breakpoint()
         for vec in v_list:
+            if not vec:
+                print(f"vector store not found at {vec}")
             self.vector_store = self.vector_store_utils.merge_vectorstore(self.vector_store,vec)
+        return self.vector_store
            
 if __name__ == "__main__":
     from components.website.binance_api_docs import BinanceApiDocs
@@ -157,11 +163,14 @@ if __name__ == "__main__":
              "QUERY_CURRENT_UM_OPEN":'https://developers.binance.com/docs/derivatives/portfolio-margin/trade/Query-Current-UM-Open',
              "QUERY_UM_CONDITIONAL_ORDER":'https://developers.binance.com/docs/derivatives/portfolio-margin/trade/Query-UM-Conditional-Order'}
     breakpoint()
-    cc = CreateVectorStore(docs=[],mode="merge",filetype="nested_dict",vector_store_base_fp='components/vectore_indexes/')
-    nest_dict_output_fp_list,docs_url_list = cc.recursive_get_nested_dict_docs_info(lefty,make_dir=MAKE_DIR)
-    # local_vectorstore_dict = cc.load_all_vectore_stores(nest_dict_output_fp_list)
-    # merged_vs = cc.merge_all_vectore_stores(local_vectorstore_dict.values())
+    cc = CreateVectorStore(docs=[],mode="replace",filetype="nested_dict",vector_store_base_fp='components/vectore_indexes/')
+    nest_dict_output_fp_list,docs_url_list = cc.recursive_get_nested_dict_docs_info(docs,make_dir=MAKE_DIR)
+    # res = cc.create_nested_dict_vectorstore(nest_dict_output_fp_list,debug=False,do_multithread=True,
+    #     nest_dict_output_fp_list=nest_dict_output_fp_list,docs_url_list=docs_url_list)
+    local_vectorstore_dict = cc.load_all_vectore_stores(nest_dict_output_fp_list)
     breakpoint()
-    res = cc.create_nested_dict_vectorstore(lefty,debug=False,do_multithread=True,
-                                            nest_dict_output_fp_list=nest_dict_output_fp_list,docs_url_list=docs_url_list)
+    
+    merged_vs = cc.merge_all_vectore_stores(local_vectorstore_dict.values())
+    # breakpoint()``
+    
     breakpoint()

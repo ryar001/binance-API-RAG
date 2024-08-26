@@ -1,166 +1,139 @@
-import utils
-from langchain.text_splitter import RecursiveCharacterTextSplitter
-from langchain_experimental.text_splitter import SemanticChunker
-from langchain import text_splitter
 from langchain_openai import OpenAIEmbeddings
 from langchain_openai import ChatOpenAI
 from langchain_community.vectorstores import FAISS
-from langchain.chains import load_chain
 from langchain_core.runnables.base import RunnableSequence
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.runnables import RunnablePassthrough
 from langchain import hub
-from langchain_core.prompts import ChatPromptTemplate
-from langchain_core.documents import Document
-import utils as const
-import os
+from langchain_core.prompts import PromptTemplate
 import dotenv
+import os
+import getpass
 from pathlib import Path
 from typing import List, Dict
-from vectorstore_utils import VectorStoreUtils
+from typing_extensions import Annotated, TypedDict
+from langchain_core.pydantic_v1 import BaseModel, Field
 
 BASE_PATH = Path(__file__).parent.parent
 
-dotenv.load_dotenv(dotenv_path=Path(BASE_PATH,".env")  ) # Specify the path to your .env_ai file
-# os.environ["OPENAI_API_KEY"] = os.getenv("OPENAI_API_KEY", default=getpass.getpass())
-
-
+# dotenv.load_dotenv(dotenv_path=Path(BASE_PATH,".env")  ) # Specify the path to your .env_ai file
+# os.environ["OPENAI_API_KEY"] = os.getenv("OPENAI_API_KEY", default=getpass.getpass(prompt="llm Api key: "))
 
 class RAGModel:
-    RAG_PROMPT = ChatPromptTemplate.from_template("You are an assistant for question-answering tasks. Use the following pieces of retrieved context to answer the question. If you don't know the answer, just say that you don't know. Use three sentences maximum and keep the answer concise. Include the sources used and its page number\nQuestion: {question} \nContext: {context} \nAnswer:")
-
     def __init__(
-        self, doc_path="", embedding_model="text-embedding-3-large", llm_model="gpt-4o-mini-2024-07-18",
-        loader_name="PyPDFLoader",**kwargs):
+        self, vectore_store_obj=None, 
+        prompt:PromptTemplate=None,
+        llm_model:str="gpt-4o-mini-2024-07-18",
+        llm_api_key:str=None,
+        temperature:float=0,
+        **kwargs):
+        """
+        Initializes a RAGModel instance with the given parameters.
 
-        self.loader_name = loader_name
-        self.doc_path = doc_path
-        self.embedding_model = embedding_model
+        Args:
+            vectore_store_obj: The vector store object to use.
+            prompt: The prompt template to use. Defaults to None.
+            embedding_model: The embedding model to use. Defaults to "text-embedding-3-large".
+            llm_model: The LLM model to use. Defaults to "gpt-4o-mini-2024-07-18".
+            temperature: The temperature to use. Defaults to 0.
+            **kwargs: Additional keyword arguments.
+
+        Returns:
+            None
+        """
+        self.vector_stores_obj = vectore_store_obj
+        self.prompt = prompt if prompt else hub.pull("rlm/rag-prompt")
         self.llm_model = llm_model
+        self.temperature = temperature
+        self.llm_api_key = llm_api_key
         self.documents = None
         self.docs = None
-        self.faiss_index = None
         self.llm = None
         self.vector_store = None
         self.rag_chain:RunnableSequence = None
-        self.prompt:ChatPromptTemplate = kwargs.get("prompt", self.RAG_PROMPT ) if kwargs.get("prompt", self.RAG_PROMPT ) else hub.pull("rlm/rag-prompt")
+        
         self.debug:bool = kwargs.get("debug", False)
-        self.temperature:float = kwargs.get("temperature", 0)
-        self.splitter = kwargs.get("splitter", RecursiveCharacterTextSplitter)
-        self.documents_loader: const.DocumentLoaders = const.DocumentLoaders
-        self.vector_store_utils = VectorStoreUtils(**kwargs)
-        # self.retriever = con
+        self.input_variables = kwargs.get("input_variables",self.prompt.input_variables)
+        self.include_metadata:bool = kwargs.get("include_metadata",False)
 
-    def load_documents(self,urls:List[str]=[""], loader_name:str="",**kwargs):
-        '''load documents from the specified loader'''
-        just_load = kwargs.get("just_load", False)
-        if not loader_name:
-            loader_name = self.loader_name
-        loader = self.documents_loader.__dict__.get(loader_name)
-        loader = loader(self.doc_path, **kwargs)
-        if just_load:
-            self.documents = loader.load()
-            return self.documents
-        self.documents = loader.load_and_split()
-        return self.documents
+        # get the input variables
+        self.input_variables = self.get_prompt_input_variables(self.input_variables)
+        
+        # init the rag chain
+        self.get_rag_chain()
 
-    def pdf_loader(self,urls:List[str]=None,**kwargs):
-        '''PyPDFLoader is a loader that uses PyPDF2 to load PDF files. It is useful for extracting text from PDF files.'''
-        urls = urls if urls else self.doc_path
-        loader = PyPDFLoader(urls)
-        self.documents = loader.load_and_split()
-        if self.debug:
-            self.documents = self.documents[:2]
-
-    def bshtml_loader(self,urls:List[str]=["https://binance-docs.github.io/apidocs/pm/en/#change-log"],**kwargs):
-        '''BSHTMLLoader is a loader that uses BeautifulSoup to parse the HTML content of a webpage. It is useful for extracting text from webpages that are not easily accessible via the browser.'''
-        loader = BSHTMLLoader(urls)
-        self.documents = loader.load_and_split()
-        return self.documents
-        # print(docs[0].page_content[:61])
-    
-    def selenium_loader(self,urls:List[str]=["https://binance-docs.github.io/apidocs/pm/en/#change-log"],**kwargs):
-        '''SeleniumURLLoader is a loader that uses Selenium to load webpages. It is useful for extracting text from webpages that require JavaScript to render.'''
-        loader = SeleniumURLLoader(urls=urls)
-        self.documents = loader.load_and_split()
-        return self.documents
-
-    def split_text(self):
-        text_splitter = self.splitter(
-            chunk_size=1000,  # Customize the chunk size based on your needs
-            chunk_overlap=100,  # Overlap can be adjusted based on the structure
-            separators=["\n\n", "\n", " "],
-        )
-        self.docs = text_splitter.split_documents(self.documents)
-
-    def embed_text(self):
-        embeddings = OpenAIEmbeddings(model=self.embedding_model)
-        self.faiss_index = FAISS.from_documents(self.docs, embeddings)
-
-    def initialize_llm(self):
+    def initialize_llm(self,api_key=None,base_url=None,organization=None):
         self.llm = ChatOpenAI(
             model=self.llm_model,
             temperature=self.temperature,
             max_tokens=None,
             timeout=None,
             max_retries=2,
-            # api_key="...",
-            # base_url="...",
-            # organization="...",
+            api_key=api_key,
+            base_url=base_url,
+            organization=organization,
             # other params...
         )
+    @staticmethod
+    def format_docs(docs,include_metadata:bool=False):
+        _output = ""
+        for doc in docs:
+            _output += "\n\n"
+            if include_metadata:
+                for key,value in doc.metadata.items():
+                    _output += f"{key}: {value}\n"
+            _output += doc.page_content
+        return _output
+        # return "\n\n".join(doc.page_content for doc in docs)
 
-    def format_docs(self,docs):
-        return "\n\n".join(doc.page_content for doc in docs)
+    @staticmethod
+    def get_prompt_input_variables(input_variables:List[str],exclude:str="context")->Dict[str,RunnablePassthrough]:
+        return {i:RunnablePassthrough() for i in input_variables if i != exclude}
+    
+    @staticmethod
+    def get_metadata(docs,key:str):
+        return [doc.metadata.get(key) for doc in docs]
 
-    def include_source(self):
-        self.prompt
+    # @staticmethod
+    # def format_docs(docs):
+    #     breakpoint()
+    #     return "\n\n".join(doc.page_content for doc in docs)
 
     def create_rag_chain(self):
-        retriever = self.faiss_index.as_retriever()
-
-        # RunnablePassthrough is a simple runnable that passes the input to the output , eg, the question to the output
-        # StrOutputParser is a simple output parser that just output the str of the llm output
+        # Retriever is a simple retriever that uses the vector store object from langchain
+        retriever = self.vector_stores_obj.as_retriever()
         self.rag_chain = (
-            {"context": retriever | self.format_docs, "question": RunnablePassthrough()}
+            retriever
+            | (lambda docs: {
+                "context": self.format_docs(docs,include_metadata=self.include_metadata),
+                "input": RunnablePassthrough(),
+            })
             | self.prompt
-            | self.llm
-            | StrOutputParser()
+            | self.llm.with_structured_output(AnswerWithSources)
         )
-        return self.rag_chain
-        # for chunk in self.rag_chain.stream("What is Task Decomposition?"):
-        #     print(chunk, end="", flush=True)
 
-    def answer_question(self, question):
+    def get_rag_chain(self):
+        '''run all the methods to create the RAG chain'''
+        self.initialize_llm()
+        self.create_rag_chain()
+    
+    def answer_question(self, question:str):
         if self.rag_chain:
-            return self.rag_chain.invoke( question)
+            return self.rag_chain.invoke(  question)
         else:
             raise ValueError(
                 "RAG chain is not initialized. Call create_rag_chain() first."
             )
     
-    def get_vectorstore(self,docs):
-        self.vector_store = self.vector_store_utils.get_vectorstore(data_type="documents",text_chunks=docs,mode="merge")
-        
-    def create_chain(self):
-        '''run all the methods to create the RAG chain'''
-        self.load_documents(self.loader_name)
-        self.split_text()
-        self.embed_text()
-        self.get_vectorstore(self.docs)
-        self.initialize_llm()
-        self.create_rag_chain()
-        return self.rag_chain
-    
-    # def add_to
-    
+class AnswerWithSources(BaseModel):
+    answer: str = Field(description="The answer from llm")
+    url_link: str = Field(description="HTTP Url use for the context sent to llm")
 
 if __name__ == "__main__":
     from website.binance_api_docs import BinanceApiDocs
     breakpoint()
     # sele_web_rag = RAGModel(debug=True,loader_name="SeleniumURLLoader" ,doc_path=["https://doc.xt.com/"])
     sele_web_rag = RAGModel(debug=True,loader_name="url_selenium",
-                            doc_path=["https://doc.xt.com/#documentationrestApi"],
                             vector_store_fp="/Users/jokerssd/Documents/RAG-freshstart/components/vectore_indexes/index.faiss",
                             )
     # sele_web_rag = RAGModel(debug=True,loader_name="url_selenium"
@@ -168,7 +141,7 @@ if __name__ == "__main__":
     #                          vector_store_fp="/Users/jokerssd/Documents/RAG-freshstart/components/vectore_indexes/index.faiss")
     
 
-    sele_web_rag_chain = sele_web_rag.create_chain()
+    sele_web_rag_chain = sele_web_rag.get_rag_chain()
     while 1:
         question = input("Enter your query: ")
         ans = sele_web_rag_chain.answer_question(question)

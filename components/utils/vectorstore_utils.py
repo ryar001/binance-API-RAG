@@ -88,6 +88,7 @@ class VectorStoreUtils:
         if not Path(vs_path).exists():
             print(f"vector store not found at {vs_path}")
             return None
+        embeddings = embeddings if embeddings else self.embeddings_app
         try:
             return self.vectorstore_app.load_local(vs_path, embeddings=embeddings,**kwargs)
         except RuntimeError as err:
@@ -123,11 +124,11 @@ class VectorStoreUtils:
         """
         embeddings = kwargs.get("embeddings", self.embeddings_app)
         vector_store_fp = kwargs.get("vector_store_fp", self.vector_store_fp)
-        if Path(vector_store_fp).exists():
+        if Path(vector_store_fp).exists() and mode=='merge':
             self.vectorstore = self.load_vectorstore(
                 vs_path=vector_store_fp, embeddings=embeddings,
                 allow_dangerous_deserialization=True)
-            print("Loaded vectorstore")
+            print(f"Loaded local vectorstore  @ {vector_store_fp}")
 
         # check if additional text_chunks are provided
         # if not will return the existing vectorstore
@@ -159,16 +160,18 @@ class VectorStoreUtils:
         """
         if not vectorstore:
             return vectorstore2
+        
+        if not vectorstore2:
+            return vectorstore
+        if not vectorstore and not vectorstore2:
+            return None
         try:
             vectorstore.merge_from(vectorstore2)
             return vectorstore
         except Exception as err:
             print(err)
-            if vectorstore:
-                return vectorstore
-            if vectorstore2:
-                return vectorstore2
-            return None
+            breakpoint()
+            return vectorstore
 
     def search_docs(self, query: str, method: str = "similarity_search", top_x: int = 5, **kwargs):
         """
