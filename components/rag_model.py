@@ -94,11 +94,6 @@ class RAGModel:
     def get_metadata(docs,key:str):
         return [doc.metadata.get(key) for doc in docs]
 
-    # @staticmethod
-    # def format_docs(docs):
-    #     breakpoint()
-    #     return "\n\n".join(doc.page_content for doc in docs)
-
     def create_rag_chain(self):
         # Retriever is a simple retriever that uses the vector store object from langchain
         retriever = self.vector_stores_obj.as_retriever()
